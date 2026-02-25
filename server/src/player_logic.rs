@@ -137,7 +137,7 @@ pub fn calculate_new_position(position: &Vector3, rotation: &Vector3, input: &In
 // Update player state based on input
 pub fn update_input_state(player: &mut PlayerData, input: InputState, client_rot: Vector3, client_animation: String) {
     // Calculate movement & animation based on RECEIVED input
-    let delta_time_estimate: f32 = 1.0 / 60.0; // Estimate client frame delta
+    let delta_time_estimate: f32 = 1.0 / 20.0; // Match client input send rate (~20Hz)
     let new_position = calculate_new_position(
         &player.position,
         &client_rot, // Use client rotation for direction calc

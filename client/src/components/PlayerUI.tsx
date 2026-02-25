@@ -25,7 +25,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { PlayerData } from '../generated';
+import { PlayerData } from '../generated/types';
 
 interface PlayerUIProps {
   playerData: PlayerData | null;

@@ -43,7 +43,7 @@ use crate::common::{Vector3, InputState};
 
 // --- Schema Definitions ---
 
-#[spacetimedb::table(name = player, public)]
+#[spacetimedb::table(accessor = player, public)]
 #[derive(Clone)]
 pub struct PlayerData {
     #[primary_key]
@@ -66,7 +66,7 @@ pub struct PlayerData {
     color: String,
 }
 
-#[spacetimedb::table(name = logged_out_player)]
+#[spacetimedb::table(accessor = logged_out_player)]
 #[derive(Clone)]
 pub struct LoggedOutPlayerData {
     #[primary_key]
@@ -82,7 +82,7 @@ pub struct LoggedOutPlayerData {
     last_seen: Timestamp,
 }
 
-#[spacetimedb::table(name = game_tick_schedule, public, scheduled(game_tick))]
+#[spacetimedb::table(accessor = game_tick_schedule, public, scheduled(game_tick))]
 pub struct GameTickSchedule {
     #[primary_key]
     #[auto_inc]
@@ -114,13 +114,13 @@ pub fn init(ctx: &ReducerContext) -> Result<(), String> {
 
 #[spacetimedb::reducer(client_connected)]
 pub fn identity_connected(ctx: &ReducerContext) {
-    spacetimedb::log::info!("Client connected: {}", ctx.sender);
+    spacetimedb::log::info!("Client connected: {}", ctx.sender());
     // Player registration/re-joining happens in register_player reducer called by client
 }
 
 #[spacetimedb::reducer(client_disconnected)]
 pub fn identity_disconnected(ctx: &ReducerContext) {
-    let player_identity: Identity = ctx.sender;
+    let player_identity: Identity = ctx.sender();
     spacetimedb::log::info!("Client disconnected: {}", player_identity);
     let logout_time: Timestamp = ctx.timestamp;
 
@@ -154,7 +154,7 @@ pub fn identity_disconnected(ctx: &ReducerContext) {
 
 #[spacetimedb::reducer]
 pub fn register_player(ctx: &ReducerContext, username: String, character_class: String) {
-    let player_identity: Identity = ctx.sender;
+    let player_identity: Identity = ctx.sender();
     spacetimedb::log::info!(
         "Registering player {} ({}) with class {}",
         username,
@@ -239,11 +239,11 @@ pub fn update_player_input(
     client_rot: Vector3,
     client_animation: String,
 ) {
-    if let Some(mut player) = ctx.db.player().identity().find(ctx.sender) {
+    if let Some(mut player) = ctx.db.player().identity().find(ctx.sender()) {
         player_logic::update_input_state(&mut player, input, client_rot, client_animation);
         ctx.db.player().identity().update(player);
     } else {
-        spacetimedb::log::warn!("Player {} tried to update input but is not active.", ctx.sender);
+        spacetimedb::log::warn!("Player {} tried to update input but is not active.", ctx.sender());
     }
 }
 

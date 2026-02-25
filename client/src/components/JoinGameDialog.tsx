@@ -1,30 +1,6 @@
 /**
- * JoinGameDialog.tsx
- * 
- * Entry point component for the multiplayer game experience:
- * 
- * Key functionality:
- * - Provides a UI for player name entry and character selection
- * - Validates user input before allowing game entry
- * - Displays character class options with visual previews
- * - Handles initial connection to the game server
- * - Manages the transition from lobby to active gameplay
- * 
- * Props:
- * - onJoinGame: Callback function that passes player information to parent component
- * - isOpen: Boolean to control dialog visibility
- * - onClose: Function to handle dialog dismissal
- * 
- * Technical implementation:
- * - Uses Chakra UI components for responsive, accessible interface
- * - Implements form validation for player information
- * - Includes character preview displays using Three.js
- * - Manages component state for selection process
- * 
- * Related files:
- * - GameScene.tsx: Main game environment that loads after joining
- * - Player.tsx: Character implementation that uses selected options
- * - PlayerClassPreview.tsx: Visual preview of selectable characters
+ * JoinGameDialog.tsx — Modal overlay for entering a username and selecting
+ * a character class (Wizard or Paladin) before joining the game.
  */
 
 import React, { useState, Suspense } from 'react';

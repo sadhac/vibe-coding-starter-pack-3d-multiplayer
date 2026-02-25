@@ -1,33 +1,7 @@
 /**
- * GameScene.tsx
- * 
- * Core component that manages the 3D multiplayer game environment:
- * 
- * Key functionality:
- * - Acts as the primary container for all 3D game elements
- * - Manages the game world environment (terrain, lighting, physics)
- * - Instantiates and coordinates player entities
- * - Handles multiplayer synchronization across clients
- * - Manages game state and lifecycle (start, join, disconnect)
- * - Maintains socket connections for real-time gameplay
- * 
- * Props:
- * - username: The local player's display name
- * - playerClass: The selected character class for the local player
- * - roomId: Unique identifier for the multiplayer game session
- * - onDisconnect: Callback function when player disconnects from game
- * 
- * Technical implementation:
- * - Uses React Three Fiber (R3F) for 3D rendering within React
- * - Implements physics system with Rapier for realistic interactions
- * - Manages socket.io connections for multiplayer state synchronization
- * - Handles dynamic loading and instantiation of 3D assets
- * 
- * Related files:
- * - Player.tsx: Individual player entity component
- * - JoinGameDialog.tsx: UI for joining a game session
- * - PlayerUI.tsx: In-game user interface elements
- * - Socket handlers for network communication
+ * GameScene.tsx — React Three Fiber Canvas containing the 3D game world.
+ * Renders sky, lighting, ground plane, grid, and all Player entities.
+ * Debug helpers (light/shadow camera) toggle with isDebugPanelVisible.
  */
 
 import React, { useRef } from 'react';
@@ -36,8 +10,8 @@ import { Box, Plane, Grid, Sky } from '@react-three/drei';
 import * as THREE from 'three';
 import { DirectionalLightHelper, CameraHelper } from 'three'; // Import the helper
 // Import generated types
-import { PlayerData, InputState } from '../generated';
-import { Identity } from '@clockworklabs/spacetimedb-sdk';
+import { PlayerData, InputState } from '../generated/types';
+import { Identity } from 'spacetimedb';
 import { Player } from './Player';
 
 interface GameSceneProps {
@@ -108,7 +82,7 @@ export const GameScene: React.FC<GameSceneProps> = ({
       >
         <meshStandardMaterial color="#606060" /> { /* Changed to darker gray */ }
       </Plane>
-o
+
       {/* Simplified Grid Helper (mid-gray lines) */}
       <Grid 
         position={[0, 0, 0]} 
@@ -127,7 +101,7 @@ o
             playerData={player}
             isLocalPlayer={isLocal}
             onRotationChange={isLocal ? onPlayerRotation : undefined}
-            currentInput={isLocal ? currentInputRef?.current : undefined}
+            currentInputRef={isLocal ? currentInputRef : undefined}
             isDebugArrowVisible={isLocal ? isDebugPanelVisible : false} // Pass down arrow visibility
             isDebugPanelVisible={isDebugPanelVisible} // Pass down general debug visibility
           />

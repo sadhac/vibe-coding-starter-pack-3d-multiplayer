@@ -1,130 +1,165 @@
 # Vibe Coding Starter Pack: 3D Multiplayer
 
-A lightweight 3D web-based multiplayer starter kit using Three.js, React, and SpacetimeDB. Perfect for building your own multiplayer games or interactive experiences with modern AI coding tools like Cursor.
+A lightweight 3D web-based multiplayer starter kit using Three.js, React, and SpacetimeDB. Perfect for building your own multiplayer games or interactive experiences with modern AI coding tools like Cursor and Claude Code.
 
 [Demo Video](https://x.com/majidmanzarpour/status/1909810088426021192)
 
+## Tech Stack
+
+| Layer | Technology | Version |
+|-------|-----------|---------|
+| Backend | [SpacetimeDB](https://spacetimedb.com) (Rust) | 2.0.1 |
+| Frontend | React | 19 |
+| 3D Rendering | Three.js / React Three Fiber | 0.175 / 9.x |
+| 3D Helpers | @react-three/drei | 10.x |
+| Language | TypeScript | 5.7 |
+| Build Tool | Vite | 6.x |
+
 ## Project Structure
 
-- `client/` - Frontend game client built with Three.js, React, and Vite
-- `server/` - Backend SpacetimeDB module written in Rust
+```
+├── client/                  # React + Three.js frontend
+│   ├── public/models/       # FBX character models (Wizard, Paladin)
+│   ├── src/
+│   │   ├── components/      # GameScene, Player, DebugPanel, PlayerUI, JoinGameDialog
+│   │   ├── generated/       # Auto-generated SpacetimeDB TypeScript bindings
+│   │   ├── App.tsx          # Connection, input handling, game loop
+│   │   └── simulation.ts    # Bot load-testing tool
+│   └── package.json
+├── server/                  # SpacetimeDB Rust module
+│   └── src/
+│       ├── lib.rs           # Tables, reducers, lifecycle handlers
+│       ├── player_logic.rs  # Server-side movement calculation
+│       └── common.rs        # Shared types (Vector3, InputState), constants
+├── setup.sh                 # One-command setup script
+├── CLAUDE.md                # AI assistant project context
+└── README.md
+```
 
 ## Features
 
-- **3D Multiplayer Foundation**: Connected players can see and interact with each other in real-time
-- **Modern Tech Stack**: React, TypeScript, Three.js, SpacetimeDB, and Vite
-- **Character System**: Basic movement and animations ready to customize
-- **Multiplayer Support**: Server-authoritative design with client prediction
-- **Debug Tools**: Built-in debug panel to monitor game state
-- **Extensible**: Clean architecture designed for adding your own game mechanics
-- **AI-Friendly**: Structured for effective use with AI coding assistants
+- **3D Multiplayer Foundation**: Connected players see and interact with each other in real-time
+- **Server-Authoritative Design**: SpacetimeDB Rust module handles all game state with client-side prediction
+- **Character System**: Two character classes (Wizard & Paladin) with 14+ animations each
+- **Modern Tech Stack**: React 19, TypeScript, Three.js, SpacetimeDB 2.0, Vite
+- **Debug Tools**: Built-in debug panel to monitor game state, player positions, and animations
+- **Load Testing**: Built-in simulation tool to spawn up to 100+ bot players
+- **AI-Friendly**: Structured for effective use with AI coding assistants (Cursor rules + CLAUDE.md included)
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js and npm
-- Rust and Cargo
-- SpacetimeDB CLI
+- **Rust** 1.93+ with `wasm32-unknown-unknown` target
+- **Node.js** 22+ (via nvm)
+- **SpacetimeDB CLI** 2.x
 
-### Installation
-
-First, clone the repository:
+### Quick Start
 
 ```bash
 git clone https://github.com/majidmanzarpour/vibe-coding-starter-pack-3d-multiplayer
 cd vibe-coding-starter-pack-3d-multiplayer
-```
-
-Then run the quick start script to set up everything automatically:
-
-```bash
 sh setup.sh
 ```
 
-Or install dependencies manually with these steps:
+Or install manually:
 
 ```bash
-# 1. Install Rust (if not already installed)
+# 1. Install Rust (if needed)
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source "$HOME/.cargo/env"
-
-# 2. Add WASM target for Rust
 rustup target add wasm32-unknown-unknown
 
-# 3. Install Node.js via nvm (if not already installed)
+# 2. Install Node.js via nvm (if needed)
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.2/install.sh | bash
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-nvm install 22
-nvm use 22
+nvm install 22 && nvm use 22
 
-# 4. Install SpacetimeDB CLI
+# 3. Install SpacetimeDB CLI
 curl -sSf https://install.spacetimedb.com | sh
-
-# Note: SpacetimeDB installs to ~/.local/bin - add it to your PATH if needed
 export PATH="$HOME/.local/bin:$PATH"
 
-# 5. Install client dependencies
-cd client
-npm install
-
-# 6. Build server code
-cd ../server
-spacetime build
-
-# 7. Generate TypeScript bindings
+# 4. Install dependencies and build
+cd client && npm install && cd ..
+cd server && spacetime build
 spacetime generate --lang typescript --out-dir ../client/src/generated
 ```
 
-### Development
+### Running the Game
 
-Run both client and server in development mode:
+You need three terminals:
 
 ```bash
-# Terminal 1: Run the SpacetimeDB server
+# Terminal 1: Start SpacetimeDB server
 cd server
-spacetime build
 spacetime start
+
+# Terminal 2: Publish the game module
+cd server
 spacetime publish vibe-multiplayer
 
-# Terminal 2: Run the client
+# Terminal 3: Start the client dev server
 cd client
 npm run dev
 ```
 
-When making changes to the server schema or reducers, regenerate TypeScript bindings:
+Open http://localhost:5173 in your browser, enter a name, pick a class, and join.
+
+### Regenerating Bindings
+
+When you change server schema or reducers:
 
 ```bash
-# From the server directory
+cd server
+spacetime build
 spacetime generate --lang typescript --out-dir ../client/src/generated
+spacetime publish vibe-multiplayer
 ```
-
-This starts:
-- SpacetimeDB server running locally
-- Client on http://localhost:5173 (Vite dev server)
-
-## About SpacetimeDB
-
-This project is built on [SpacetimeDB](https://spacetimedb.com), a distributed database and serverless application framework specifically designed for multiplayer games and real-time applications. SpacetimeDB provides:
-
-- **Real-time Synchronization**: Automatically sync database changes to connected clients
-- **TypeScript Client Generation**: Generate type-safe client bindings from your Rust server code
-- **Seamless Deployment**: Easily deploy your game server to the cloud
-- **Game-Oriented Architecture**: Built with multiplayer game patterns in mind
-
-SpacetimeDB handles the complex networking, state synchronization, and persistence layers so you can focus on building your game logic.
 
 ## Controls
 
-- **W, A, S, D**: Move the player character
-- **Shift**: Sprint
-- **Space**: Jump 
-- **Mouse**: Control camera direction
+| Key | Action |
+|-----|--------|
+| W, A, S, D | Move |
+| Shift | Sprint |
+| Space | Jump |
+| Left Click | Attack |
+| Mouse | Look / Camera direction |
+| Mouse Wheel | Zoom |
+| C | Toggle camera mode (Follow / Orbital) |
+
+## Simulation / Load Testing
+
+Spawn bot players to stress-test the server and see multiplayer in action:
+
+```bash
+cd client
+
+# Default: 10 bots for 10 seconds
+npm run simulate
+
+# Custom: 50 bots for 30 seconds
+npm run simulate -- 50 30
+```
+
+Open the browser client while bots are running to see them walking around the 3D scene.
+
+## Architecture
+
+```
+Browser Client                    SpacetimeDB Server
+┌─────────────────┐              ┌──────────────────┐
+│  React + R3F    │   WebSocket  │  Rust WASM Module │
+│  Three.js       │◄────────────►│  Tables + Reducers│
+│  Input → Game   │  (ws://3000) │  Player Logic     │
+│  Loop (20Hz)    │              │  Game Tick (1Hz)  │
+└─────────────────┘              └──────────────────┘
+```
+
+- **Client** sends player input at 20Hz via `updatePlayerInput` reducer
+- **Server** validates and updates state; changes auto-sync to all subscribed clients
+- **Client-side prediction** provides responsive movement while awaiting server confirmation
 
 ## Customization
-
-This starter pack is designed to be easily customizable:
 
 ### Character Models
 
@@ -137,48 +172,37 @@ See `client/src/README_3D_MODELS.md` for details on working with the models.
 
 ### Game Mechanics
 
-This starter provides the multiplayer foundation - now add your own game mechanics!
-
-Ideas for expansion:
-- Add combat systems
-- Implement physics interactions
-- Create collectible items
-- Design levels and terrain
-- Add vehicles or special movement modes
-- Implement game-specific objectives
-
-### Multiplayer Features
-
-The starter pack includes:
-- Player connection/disconnection handling
-- Position and movement synchronization
-- Player nametags
-- Server-authoritative state management
+This starter provides the multiplayer foundation — now add your own game mechanics:
+- Combat systems and projectiles
+- Physics interactions
+- Collectible items and inventory
+- Levels and terrain
+- Vehicles or special movement modes
+- Game-specific objectives and scoring
 
 ## Development with AI Tools
 
-This project is organized to work well with AI coding tools like Cursor:
+This project is organized to work well with AI coding tools like [Claude Code](https://claude.ai/claude-code) and [Cursor](https://cursor.com):
 
-1. Clear component separation makes it easy to describe changes
-2. Modular architecture allows focused modifications
-3. Type definitions help AI understand the codebase structure
-4. Comments explain important technical patterns
+1. **CLAUDE.md** included at the project root — gives Claude Code full context on architecture, SpacetimeDB v2 API patterns, and project conventions
+2. **Cursor rules** in `.cursor/rules/techguide.mdc` — always-on technical guide for Cursor's AI features
+3. Clear component separation and modular architecture make it easy to describe changes
+4. TypeScript types and generated bindings help AI understand the codebase structure
+5. Comments explain important technical patterns (client-side prediction, stale closure avoidance, etc.)
 
-## Technical Features
+## About SpacetimeDB
 
-- SpacetimeDB for real-time multiplayer synchronization
-- React and Three.js (via React Three Fiber) for 3D rendering
-- TypeScript for type safety
-- Character animation system
-- Pointer lock controls for seamless camera movement
-- Debug panel for monitoring state
-- Player identification with custom usernames and colors
-- Seamless player joining and leaving
+This project is built on [SpacetimeDB](https://spacetimedb.com), a distributed database and serverless application framework designed for multiplayer games. SpacetimeDB provides:
+
+- **Real-time Sync**: Database changes automatically push to connected clients
+- **TypeScript Bindings**: Type-safe client code generated from your Rust server module
+- **Server-Authoritative**: All game logic runs in the secure server environment
+- **Game-Oriented**: Built with multiplayer patterns (subscriptions, reducers, identity) in mind
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. You are free to use, modify, and distribute this code for any purpose, including commercial applications.
+MIT License — see [LICENSE](LICENSE) for details. Free to use, modify, and distribute for any purpose, including commercial applications.
 
 ## Acknowledgments
 
-This starter pack is maintained by [Majid Manzarpour](https://x.com/majidmanzarpour) and is free to use for any project. 
+This starter pack is maintained by [Majid Manzarpour](https://x.com/majidmanzarpour) and is free to use for any project.

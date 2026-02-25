@@ -36,7 +36,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useAnimations, Html, Sphere } from '@react-three/drei';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
-import { PlayerData, InputState } from '../generated';
+import { PlayerData, InputState } from '../generated/types';
 
 // Define animation names for reuse
 const ANIMATIONS = {
@@ -57,11 +57,11 @@ const ANIMATIONS = {
 };
 
 // --- Client-side Constants ---
-const PLAYER_SPEED = 5.0; // Match server logic
+const PLAYER_SPEED = 7.5; // Match server logic (common.rs PLAYER_SPEED)
 const SPRINT_MULTIPLIER = 1.8; // Match server logic
 
 // --- Client-side Prediction Constants ---
-const SERVER_TICK_RATE = 60; // Assuming server runs at 60Hz
+const SERVER_TICK_RATE = 20; // Client sends input at ~20Hz
 const SERVER_TICK_DELTA = 1 / SERVER_TICK_RATE; // Use this for prediction
 const POSITION_RECONCILE_THRESHOLD = 0.4;
 const ROTATION_RECONCILE_THRESHOLD = 0.1; // Radians
@@ -77,7 +77,7 @@ interface PlayerProps {
   playerData: PlayerData;
   isLocalPlayer: boolean;
   onRotationChange?: (rotation: THREE.Euler) => void;
-  currentInput?: InputState; // Prop to receive current input for local player
+  currentInputRef?: React.MutableRefObject<InputState>; // Ref for live input access in useFrame
   isDebugArrowVisible?: boolean; // Prop to control debug arrow visibility
   isDebugPanelVisible?: boolean; // Prop to control general debug helpers visibility
 }
@@ -86,7 +86,7 @@ export const Player: React.FC<PlayerProps> = ({
   playerData,
   isLocalPlayer,
   onRotationChange,
-  currentInput, // Receive input state
+  currentInputRef, // Ref for live input access in useFrame
   isDebugArrowVisible = false, 
   isDebugPanelVisible = false // Destructure with default false
 }) => {
@@ -852,27 +852,23 @@ export const Player: React.FC<PlayerProps> = ({
       }
 
       if (group.current && modelLoaded) {
+        const currentInput = currentInputRef?.current;
         if (isLocalPlayer && currentInput) {
-          // --- LOCAL PLAYER PREDICTION & RECONCILIATION --- 
+          // --- LOCAL PLAYER PREDICTION & RECONCILIATION ---
 
-          // 1. Calculate predicted position based on current input, rotation, and SERVER_TICK_DELTA
+          // 1. Calculate predicted position based on current input and actual frame delta
           const predictedPosition = calculateClientMovement(
             localPositionRef.current,
-            localRotationRef.current, // Pass current local rotation; function internally selects based on mode
+            localRotationRef.current,
             currentInput,
-            SERVER_TICK_DELTA // Use FIXED delta for prediction to match server
+            dt
           );
           localPositionRef.current.copy(predictedPosition);
 
           // 2. RECONCILIATION (Position)
           const serverPosition = new THREE.Vector3(dataRef.current.position.x, dataRef.current.position.y, dataRef.current.position.z);
 
-          // Compare local (unflipped) prediction with an unflipped version of the server state
-          const unflippedServerPosition = serverPosition.clone();
-          unflippedServerPosition.x *= -1; // Undo server flip for comparison
-          unflippedServerPosition.z *= -1; // Undo server flip for comparison
-
-          const positionError = localPositionRef.current.distanceTo(unflippedServerPosition);
+          const positionError = localPositionRef.current.distanceTo(serverPosition);
           
           if (positionError > POSITION_RECONCILE_THRESHOLD) {
             // Temporarily disable LERP in orbital mode to test if reconciliation is the issue

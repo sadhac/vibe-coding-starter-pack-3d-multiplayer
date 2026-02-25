@@ -33,9 +33,9 @@
  */
 
 import React, { useState } from 'react';
-import { Identity } from '@clockworklabs/spacetimedb-sdk';
-// Import generated type, assuming path from components dir
-import { PlayerData } from '../generated'; 
+import { Identity } from 'spacetimedb';
+// Import generated type
+import { PlayerData } from '../generated/types';
 
 interface DebugPanelProps {
   statusMessage: string;

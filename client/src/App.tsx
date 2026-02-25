@@ -1,38 +1,38 @@
 /**
  * Vibe Coding Starter Pack: 3D Multiplayer - App.tsx
- * 
+ *
  * Main application component that orchestrates the entire multiplayer experience.
  * This file serves as the central hub for:
- * 
+ *
  * 1. SpacetimeDB Connection Management:
  *    - Establishes and maintains WebSocket connection
  *    - Handles authentication and identity
  *    - Subscribes to database tables
  *    - Processes real-time updates
- * 
+ *
  * 2. Player Input Handling:
  *    - Keyboard and mouse event listeners
  *    - Input state tracking and normalization
  *    - Animation state determination
  *    - Camera/rotation management with pointer lock
- * 
+ *
  * 3. Game Loop:
  *    - Sends player input to server at appropriate intervals
  *    - Updates local state based on server responses
  *    - Manages the requestAnimationFrame cycle
- * 
+ *
  * 4. UI Management:
  *    - Renders GameScene (3D view)
  *    - Controls DebugPanel visibility
  *    - Manages JoinGameDialog for player registration
  *    - Displays connection status
- * 
+ *
  * Extension points:
  *    - Add new input types in currentInputRef and InputState
  *    - Extend determineAnimation for new animation states
  *    - Add new reducers calls for game features (see handleCastSpellInput)
  *    - Modify game loop timing or prediction logic
- * 
+ *
  * Related files:
  *    - components/GameScene.tsx: 3D rendering with Three.js
  *    - components/Player.tsx: Character model and animation
@@ -42,21 +42,14 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import './App.css';
-import { Identity } from '@clockworklabs/spacetimedb-sdk';
-import * as moduleBindings from './generated';
+import { Identity } from 'spacetimedb';
+import { DbConnection, EventContext, ErrorContext } from './generated';
+import { PlayerData, InputState } from './generated/types';
 import { DebugPanel } from './components/DebugPanel';
 import { GameScene } from './components/GameScene';
 import { JoinGameDialog } from './components/JoinGameDialog';
 import * as THREE from 'three';
 import { PlayerUI } from './components/PlayerUI';
-
-// Type Aliases
-type DbConnection = moduleBindings.DbConnection;
-type EventContext = moduleBindings.EventContext;
-type ErrorContext = moduleBindings.ErrorContext;
-type PlayerData = moduleBindings.PlayerData;
-type InputState = moduleBindings.InputState;
-// ... other types ...
 
 let conn: DbConnection | null = null;
 
@@ -68,7 +61,12 @@ function App() {
   const [localPlayer, setLocalPlayer] = useState<PlayerData | null>(null);
   const [showJoinDialog, setShowJoinDialog] = useState(false);
   const [isDebugPanelExpanded, setIsDebugPanelExpanded] = useState(false);
-  const [isPointerLocked, setIsPointerLocked] = useState(false); // State for pointer lock status
+  const [isPointerLocked, setIsPointerLocked] = useState(false);
+
+  // --- Refs for stable access in callbacks (avoid stale closures) ---
+  const identityRef = useRef<Identity | null>(null);
+  const localPlayerRef = useRef<PlayerData | null>(null);
+  const connectedRef = useRef(false);
 
   // --- Ref for current input state ---
   const currentInputRef = useRef<InputState>({
@@ -77,12 +75,12 @@ function App() {
     sequence: 0,
   });
   const lastSentInputState = useRef<Partial<InputState>>({});
-  const animationFrameIdRef = useRef<number | null>(null); // For game loop
+  const animationFrameIdRef = useRef<number | null>(null);
 
-  // New import for handling player rotation data
+  // Rotation ref for player rotation data
   const playerRotationRef = useRef<THREE.Euler>(new THREE.Euler(0, 0, 0, 'YXZ'));
 
-  // --- Moved Table Callbacks/Subscription Functions Up ---
+  // --- Table Callbacks/Subscription Functions ---
   const registerTableCallbacks = useCallback(() => {
     if (!conn) return;
     console.log("Registering table callbacks...");
@@ -90,8 +88,9 @@ function App() {
     conn.db.player.onInsert((_ctx: EventContext, player: PlayerData) => {
         console.log("Player inserted (callback):", player.identity.toHexString());
         setPlayers((prev: ReadonlyMap<string, PlayerData>) => new Map(prev).set(player.identity.toHexString(), player));
-        if (identity && player.identity.toHexString() === identity.toHexString()) {
+        if (identityRef.current && player.identity.toHexString() === identityRef.current.toHexString()) {
             setLocalPlayer(player);
+            localPlayerRef.current = player;
             setStatusMessage(`Registered as ${player.username}`);
         }
     });
@@ -102,8 +101,9 @@ function App() {
             newMap.set(newPlayer.identity.toHexString(), newPlayer);
             return newMap;
         });
-        if (identity && newPlayer.identity.toHexString() === identity.toHexString()) {
+        if (identityRef.current && newPlayer.identity.toHexString() === identityRef.current.toHexString()) {
             setLocalPlayer(newPlayer);
+            localPlayerRef.current = newPlayer;
         }
     });
 
@@ -114,13 +114,14 @@ function App() {
             newMap.delete(player.identity.toHexString());
             return newMap;
         });
-        if (identity && player.identity.toHexString() === identity.toHexString()) {
+        if (identityRef.current && player.identity.toHexString() === identityRef.current.toHexString()) {
             setLocalPlayer(null);
+            localPlayerRef.current = null;
             setStatusMessage("Local player deleted!");
         }
     });
     console.log("Table callbacks registered.");
-  }, [identity]); // Keep identity dependency
+  }, []);
 
   const onSubscriptionApplied = useCallback(() => {
      console.log("Subscription applied successfully.");
@@ -129,15 +130,16 @@ function App() {
              const currentPlayers = new Map<string, PlayerData>();
              for (const player of conn.db.player.iter()) {
                  currentPlayers.set(player.identity.toHexString(), player);
-                 if (identity && player.identity.toHexString() === identity.toHexString()) {
+                 if (identityRef.current && player.identity.toHexString() === identityRef.current.toHexString()) {
                      setLocalPlayer(player);
+                     localPlayerRef.current = player;
                  }
              }
              return currentPlayers;
          }
          return prev;
      });
-  }, [identity]); // Keep identity dependency
+  }, []);
 
   const onSubscriptionError = useCallback((error: any) => {
       console.error("Subscription error:", error);
@@ -147,11 +149,11 @@ function App() {
   const subscribeToTables = useCallback(() => {
     if (!conn) return;
     console.log("Subscribing to tables...");
-    const subscription = conn.subscriptionBuilder();
-    subscription.subscribe("SELECT * FROM player");
-    subscription.onApplied(onSubscriptionApplied);
-    subscription.onError(onSubscriptionError);
-  }, [identity, onSubscriptionApplied, onSubscriptionError]); // Add dependencies
+    conn.subscriptionBuilder()
+      .onApplied(onSubscriptionApplied)
+      .onError(onSubscriptionError)
+      .subscribe("SELECT * FROM player");
+  }, [onSubscriptionApplied, onSubscriptionError]);
 
   // --- Event Handlers ---
   const handleDelegatedClick = useCallback((event: MouseEvent) => {
@@ -159,7 +161,6 @@ function App() {
       if (button) {
           event.preventDefault();
           console.log(`[CLIENT] Button click detected: ${button.getAttribute('data-action')}`);
-          // Generic button handler without specific attack functionality
       }
   }, []);
 
@@ -173,18 +174,14 @@ function App() {
     if (input.attack) return 'attack1';
     if (input.castSpell) return 'cast';
     if (input.jump) return 'jump';
-    
-    // Determine animation based on movement keys
+
     const { forward, backward, left, right, sprint } = input;
     const isMoving = forward || backward || left || right;
-    
+
     if (!isMoving) return 'idle';
-    
-    // Improved direction determination with priority handling
-    // This matches legacy implementation better
+
     let direction = 'forward';
-    
-    // Primary direction determination - match legacy player.js logic
+
     if (forward && !backward) {
       direction = 'forward';
     } else if (backward && !forward) {
@@ -194,37 +191,31 @@ function App() {
     } else if (right && !left) {
       direction = 'right';
     } else if (forward && left) {
-      // Handle diagonal movement by choosing dominant direction
       direction = 'left';
     } else if (forward && right) {
-      direction = 'right'; 
+      direction = 'right';
     } else if (backward && left) {
       direction = 'left';
     } else if (backward && right) {
       direction = 'right';
     }
-    
-    // Choose movement type based on sprint state
+
     const moveType = sprint ? 'run' : 'walk';
-    
-    // Generate final animation name
     const animationName = `${moveType}-${direction}`;
-    
+
     return animationName;
   }, []);
 
   const sendInput = useCallback((currentInputState: InputState) => {
-    if (!conn || !identity || !connected) return; // Check connection status too
-    const currentPosition = localPlayer?.position || { x: 0, y: 0, z: 0 };
-    
-    // Now using the playerRotationRef for more accurate rotation tracking
+    if (!conn || !identityRef.current || !connectedRef.current) return;
+    const currentPosition = localPlayerRef.current?.position || { x: 0, y: 0, z: 0 };
+
     const currentRotation = {
       x: playerRotationRef.current.x,
       y: playerRotationRef.current.y,
       z: playerRotationRef.current.z
     };
-    
-    // Determine animation from input state
+
     const currentAnimation = determineAnimation(currentInputState);
 
     let changed = false;
@@ -236,22 +227,25 @@ function App() {
     }
 
     if (changed || currentInputState.sequence !== lastSentInputState.current.sequence) {
-        conn.reducers.updatePlayerInput(currentInputState, currentPosition, currentRotation, currentAnimation);
+        conn.reducers.updatePlayerInput({ input: currentInputState, clientPos: currentPosition, clientRot: currentRotation, clientAnimation: currentAnimation });
         lastSentInputState.current = { ...currentInputState };
     }
-  }, [identity, localPlayer, connected, determineAnimation]);
+  }, [determineAnimation]);
+
+  // Stable ref for sendInput so game loop doesn't restart
+  const sendInputRef = useRef(sendInput);
+  sendInputRef.current = sendInput;
 
   // Add player rotation handler
   const handlePlayerRotation = useCallback((rotation: THREE.Euler) => {
-    // Update our stored rotation whenever the player rotates (from mouse movements)
     playerRotationRef.current.copy(rotation);
   }, []);
 
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
-      if (event.repeat) return; 
+      if (event.repeat) return;
       const action = keyMap[event.code];
       if (action) {
-          if (!currentInputRef.current[action]) { 
+          if (!currentInputRef.current[action]) {
              currentInputRef.current[action] = true;
           }
       }
@@ -260,14 +254,14 @@ function App() {
   const handleKeyUp = useCallback((event: KeyboardEvent) => {
       const action = keyMap[event.code];
       if (action) {
-          if (currentInputRef.current[action]) { 
+          if (currentInputRef.current[action]) {
               currentInputRef.current[action] = false;
           }
       }
   }, []);
 
   const handleMouseDown = useCallback((event: MouseEvent) => {
-      if (event.button === 0) { 
+      if (event.button === 0) {
            if (!currentInputRef.current.attack) {
                currentInputRef.current.attack = true;
            }
@@ -275,24 +269,20 @@ function App() {
   }, []);
 
   const handleMouseUp = useCallback((event: MouseEvent) => {
-      if (event.button === 0) { 
+      if (event.button === 0) {
            if (currentInputRef.current.attack) {
                currentInputRef.current.attack = false;
            }
       }
   }, []);
 
-  // Add mouse move handler with pointer lock for rotation
   const handleMouseMove = useCallback((event: MouseEvent) => {
-    // Only rotate if we have pointer lock
     if (document.pointerLockElement === document.body) {
       const sensitivity = 0.002;
-      // Update the Euler rotation with mouse movement
       playerRotationRef.current.y -= event.movementX * sensitivity;
-      
-      // Clamp vertical rotation (looking up/down) to prevent flipping
+
       playerRotationRef.current.x = Math.max(
-        -Math.PI / 2.5, 
+        -Math.PI / 2.5,
         Math.min(Math.PI / 2.5, playerRotationRef.current.x - event.movementY * sensitivity)
       );
     }
@@ -309,8 +299,8 @@ function App() {
       window.addEventListener('keyup', handleKeyUp);
       window.addEventListener('mousedown', handleMouseDown);
       window.addEventListener('mouseup', handleMouseUp);
-      window.addEventListener('mousemove', handleMouseMove); // Add mouse move listener
-      document.addEventListener('pointerlockchange', handlePointerLockChange); // Listen for lock changes
+      window.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('pointerlockchange', handlePointerLockChange);
       console.log("Input listeners added.");
   }, [handleKeyDown, handleKeyUp, handleMouseDown, handleMouseUp, handleMouseMove, handlePointerLockChange]);
 
@@ -319,8 +309,8 @@ function App() {
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('mouseup', handleMouseUp);
-      window.removeEventListener('mousemove', handleMouseMove); // Remove mouse move listener
-      document.removeEventListener('pointerlockchange', handlePointerLockChange); // Remove listener
+      window.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('pointerlockchange', handlePointerLockChange);
       console.log("Input listeners removed.");
   }, [handleKeyDown, handleKeyUp, handleMouseDown, handleMouseUp, handleMouseMove, handlePointerLockChange]);
 
@@ -334,18 +324,24 @@ function App() {
       console.log("Delegated listener removed from body.");
   }, [handleDelegatedClick]);
 
-  // --- Game Loop Effect ---
+  // --- Game Loop Effect (throttled to ~20Hz, uses stable ref to avoid restarts) ---
   useEffect(() => {
+      const INPUT_SEND_INTERVAL = 50; // ms (~20Hz)
+      let lastSendTime = 0;
       const gameLoop = () => {
-          if (!connected || !conn || !identity) {
+          if (!connectedRef.current || !conn || !identityRef.current) {
               if (animationFrameIdRef.current) {
                   cancelAnimationFrame(animationFrameIdRef.current);
                   animationFrameIdRef.current = null;
               }
               return;
           }
-          currentInputRef.current.sequence += 1;
-          sendInput(currentInputRef.current);
+          const now = performance.now();
+          if (now - lastSendTime >= INPUT_SEND_INTERVAL) {
+              currentInputRef.current.sequence += 1;
+              sendInputRef.current(currentInputRef.current);
+              lastSendTime = now;
+          }
           animationFrameIdRef.current = requestAnimationFrame(gameLoop);
       };
 
@@ -361,7 +357,7 @@ function App() {
               animationFrameIdRef.current = null;
           }
       };
-  }, [connected, conn, identity, sendInput]);
+  }, [connected]);
 
   // --- Connection Effect Hook ---
   useEffect(() => {
@@ -383,11 +379,13 @@ function App() {
     const onConnect = (connection: DbConnection, id: Identity, _token: string) => {
       console.log("Connected!");
       conn = connection;
+      identityRef.current = id;
+      connectedRef.current = true;
       setIdentity(id);
       setConnected(true);
       setStatusMessage(`Connected as ${id.toHexString().substring(0, 8)}...`);
-      subscribeToTables();
       registerTableCallbacks();
+      subscribeToTables();
       setupInputListeners();
       setupDelegatedListeners();
       setShowJoinDialog(true);
@@ -398,15 +396,19 @@ function App() {
       console.log("onDisconnect triggered:", reasonStr);
       setStatusMessage(`Disconnected: ${reasonStr}`);
       conn = null;
+      identityRef.current = null;
+      connectedRef.current = false;
+      localPlayerRef.current = null;
       setIdentity(null);
       setConnected(false);
       setPlayers(new Map());
       setLocalPlayer(null);
     };
 
-    moduleBindings.DbConnection.builder()
+    DbConnection.builder()
       .withUri(`ws://${dbHost}`)
-      .withModuleName(dbName)
+      .withDatabaseName(dbName)
+      .withConfirmedReads(false)
       .onConnect(onConnect)
       .onDisconnect(onDisconnect)
       .build();
@@ -425,7 +427,7 @@ function App() {
         return;
     }
     console.log(`Registering as ${username} (${characterClass})...`);
-    conn.reducers.registerPlayer(username, characterClass);
+    conn.reducers.registerPlayer({ username, characterClass });
     setShowJoinDialog(false);
   };
 
@@ -433,37 +435,32 @@ function App() {
   return (
     <div className="App" style={{ width: '100vw', height: '100vh', position: 'relative' }}>
       {showJoinDialog && <JoinGameDialog onJoin={handleJoinGame} />}
-      
-      {/* Conditionally render DebugPanel based on connection status */} 
-      {/* Visibility controlled internally, expansion controlled by state */}
+
       {connected && (
-          <DebugPanel 
+          <DebugPanel
             statusMessage={statusMessage}
             localPlayer={localPlayer}
             identity={identity}
             playerMap={players}
             expanded={isDebugPanelExpanded}
             onToggleExpanded={() => setIsDebugPanelExpanded((prev: boolean) => !prev)}
-            isPointerLocked={isPointerLocked} // Pass pointer lock state down
+            isPointerLocked={isPointerLocked}
           />
       )}
 
-      {/* Always render GameScene and PlayerUI when connected */} 
       {connected && (
         <>
-          <GameScene 
-            players={players} 
-            localPlayerIdentity={identity} 
+          <GameScene
+            players={players}
+            localPlayerIdentity={identity}
             onPlayerRotation={handlePlayerRotation}
             currentInputRef={currentInputRef}
             isDebugPanelVisible={isDebugPanelExpanded}
           />
-          {/* Render PlayerUI only if localPlayer exists */} 
-          {localPlayer && <PlayerUI playerData={localPlayer} />} 
+          {localPlayer && <PlayerUI playerData={localPlayer} />}
         </>
       )}
 
-      {/* Show status when not connected */} 
       {!connected && (
           <div style={{ display:'flex', justifyContent:'center', alignItems:'center', height:'100%'}}><h1>{statusMessage}</h1></div>
       )}

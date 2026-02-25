@@ -154,6 +154,8 @@ else
   fi
 fi
 
+echo "  SpacetimeDB version: $(spacetime version list 2>/dev/null | head -1 || echo 'unknown')"
+
 # Check for Rust WASM target
 echo "→ Checking for wasm32 target..."
 rustup target list | grep "wasm32-unknown-unknown (installed)" > /dev/null
@@ -244,5 +246,5 @@ echo "   npm run dev"
 echo ""
 echo "4. Open your browser to the URL shown in the client terminal (usually http://localhost:5173)"
 echo ""
-echo "📚 For more information, see README.md and SPACETIME.md"
+echo "📚 For more information, see README.md"
 echo "======================================" 
