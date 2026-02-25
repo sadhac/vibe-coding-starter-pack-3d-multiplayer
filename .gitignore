@@ -35,5 +35,8 @@ yarn-error.log*
 target/
 **/*.rs.bk
 
+# Build artifacts
+*.tsbuildinfo
+
 # Distribution
-dist/ 
+dist/
